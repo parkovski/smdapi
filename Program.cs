@@ -9,7 +9,20 @@ var builder = WebApplication.CreateBuilder(args);
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+builder.Services.AddCors(options => {
+    options.AddPolicy(
+        "AllowLocalhostAndSmd",
+        builder => {
+            builder
+                .WithOrigins("localhost:5173", "www.shadowmtndigital.com")
+                .WithMethods("GET", "POST");
+        }
+    );
+});
+
 var app = builder.Build();
+
+app.UseCors("AllowLocalhostAndSmd");
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
