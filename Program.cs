@@ -162,10 +162,12 @@ app.MapPost("/appointment", async ([FromForm] string date,
         date, time
     );
     if (emailRows.Count == 0) {
-        return Results.NotFound("no appointment");
+        r += "?status=error&message=no%20appointment";
+        return Results.Redirect(r);
     }
     if (emailRows[0].Email != null) {
-        return Results.BadRequest("appointment already exists");
+        r += "?status=error&message=appointment%20already%20exists";
+        return Results.Redirect(r);
     }
 
     int rows = await db.ExecuteAsync(
@@ -176,11 +178,15 @@ app.MapPost("/appointment", async ([FromForm] string date,
     );
 
     if (rows == 1) {
+        r += "?status=ok&message=appointment%20booked&date=" + date
+            + "&time=" + time;
         return Results.Redirect(r);
     } else if (rows == 0) {
-        return Results.InternalServerError("update failed");
+        r += "?status=error&message=update%20failed";
+        return Results.Redirect(r);
     } else {
-        return Results.InternalServerError("too many rows");
+        r += "?status=error&message=too%20many%20rows";
+        return Results.Redirect(r);
     }
 })
 .DisableAntiforgery()
