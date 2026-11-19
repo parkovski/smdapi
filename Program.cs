@@ -155,7 +155,8 @@ app.MapGet("/appointment/{date}/{time}", async (string date, string time) => {
 app.MapPost("/appointment", async ([FromForm] string date,
                                    [FromForm] string time,
                                    [FromForm] string email,
-                                   [FromForm] string message) => {
+                                   [FromForm] string message,
+                                   [FromQuery] string r) => {
     var emailRows = await db.QueryAsync<EmailResult>(
         """SELECT email FROM appointments WHERE "date" = ? AND "time" = ?""",
         date, time
@@ -175,7 +176,7 @@ app.MapPost("/appointment", async ([FromForm] string date,
     );
 
     if (rows == 1) {
-        return Results.Ok();
+        return Results.Redirect(r);
     } else if (rows == 0) {
         return Results.InternalServerError("update failed");
     } else {
