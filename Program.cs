@@ -14,7 +14,10 @@ builder.Services.AddCors(options => {
         "AllowLocalhostAndSmd",
         builder => {
             builder
-                .WithOrigins("localhost:5173", "www.shadowmtndigital.com")
+                .WithOrigins(
+                    "http://localhost:5173",
+                    "https://www.shadowmtndigital.com"
+                )
                 .WithMethods("GET", "POST");
         }
     );
@@ -179,6 +182,7 @@ app.MapPost("/appointment", async ([FromForm] string date,
         return Results.InternalServerError("too many rows");
     }
 })
+.DisableAntiforgery()
 .WithName("ScheduleAppointment");
 
 app.MapPost("/appointment/add/{date}", async (string date) => {
