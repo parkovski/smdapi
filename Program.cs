@@ -1,5 +1,4 @@
 using System.Text;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using SQLite;
@@ -18,12 +17,16 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+string[] Times = ["09:00", "11:00", "14:00", "16:00"];
+string[] FridayTimes = ["09:00", "12:00"];
+
 SQLiteAsyncConnection db = new("./appointments.db");
 
 app.MapGet("/appointment/ranges", async () => {
     DateOnly today = DateOnly.FromDateTime(DateTime.Now);
     var rows = await db.QueryAsync<DateTimeResult>(
-        """SELECT "date", "time" FROM appointments WHERE date("date") >= date(?)""",
+        """SELECT "date", "time" FROM appointments WHERE date("date") >= date(?) """
+        + """ORDER BY "date" ASC""",
         string.Format("{0}-{1:D2}-{2:D2}", today.Year, today.Month, today.Day)
     );
 
@@ -32,10 +35,9 @@ app.MapGet("/appointment/ranges", async () => {
     }
 
     var ranges = new List<DateRange>();
-    int i = 0;
     DateOnly start = DateOnly.Parse(rows[0].Date!);
-    DateOnly end = DateOnly.Parse(rows[0].Date!);
-    for (; i < rows.Count; ++i) {
+    DateOnly end = start;
+    for (int i = 1; i < rows.Count; ++i) {
         var date = DateOnly.Parse(rows[i].Date!);
         if (date.DayOfYear == end.DayOfYear) {
             // Do nothing
@@ -50,7 +52,7 @@ app.MapGet("/appointment/ranges", async () => {
             end = date;
         }
     }
-    if (ranges.Count == 0 || end > ranges[ranges.Count - 1].End) {
+    if (ranges.Count == 0 || end > ranges[^1].End) {
         ranges.Add(new() { Start = start, End = end });
     }
 
@@ -142,14 +144,10 @@ app.MapPost("/appointment", async ([FromForm] string date,
         date, time
     );
     if (emailRows.Count == 0) {
-        return Results.NotFound(
-            new { status = "error", message = "no appointment" }
-        );
+        return Results.NotFound("no appointment");
     }
     if (emailRows[0].Email != null) {
-        return Results.BadRequest(
-            new { status = "error", message = "appointment already exists" }
-        );
+        return Results.BadRequest("appointment already exists");
     }
 
     int rows = await db.ExecuteAsync(
@@ -160,18 +158,77 @@ app.MapPost("/appointment", async ([FromForm] string date,
     );
 
     if (rows == 1) {
-        return Results.Ok(new { status = "ok", message = "update succeeded" });
+        return Results.Ok();
     } else if (rows == 0) {
-        return Results.InternalServerError(
-            new { status = "error", message = "update failed" }
-        );
+        return Results.InternalServerError("update failed");
     } else {
-        return Results.InternalServerError(
-            new { status = "error", message = "too many rows" }
-        );
+        return Results.InternalServerError("too many rows");
     }
 })
 .WithName("ScheduleAppointment");
+
+app.MapPost("/appointment/add/{date}", async (string date) => {
+    DateOnly dateDate = DateOnly.Parse(date);
+    string[] timesToInsert = Times;
+    if (dateDate.DayOfWeek == DayOfWeek.Friday) {
+        timesToInsert = FridayTimes;
+    }
+
+    int totalRows = 0;
+    foreach (var time in timesToInsert) {
+        var rows = await db.ExecuteAsync(
+            """INSERT OR IGNORE INTO appointments ("date", "time") VALUES (?, ?)""",
+            date, time
+        );
+        if (rows > 1) {
+            return Results.InternalServerError("too many rows");
+        }
+        totalRows += rows;
+    }
+    return Results.Ok($"{totalRows} rows inserted");
+})
+.WithName("AddAppointmentDate");
+
+app.MapPost("/appointment/add/{date}/{time}", async (string date, string time) => {
+    var rows = await db.ExecuteAsync(
+        """INSERT OR IGNORE INTO appointments ("date", "time") VALUES (?, ?)""",
+        date, time
+    );
+    if (rows == 1) {
+        return Results.Ok();
+    } else if (rows == 0) {
+        return Results.BadRequest("nothing was inserted");
+    } else {
+        return Results.InternalServerError("too many rows");
+    }
+})
+.WithName("AddOneAppointment");
+
+app.MapPost("/appointment/addrange/{from}/{to}", async (string from, string to) => {
+    DateOnly dateFrom = DateOnly.Parse(from);
+    DateOnly dateTo = DateOnly.Parse(to);
+    DateOnly date = dateFrom;
+    int totalRows = 0;
+    while (date <= dateTo) {
+        string[] timesToInsert = Times;
+        if (date.DayOfWeek == DayOfWeek.Friday) {
+            timesToInsert = FridayTimes;
+        }
+        foreach (var time in timesToInsert) {
+            var rows = await db.ExecuteAsync(
+                """INSERT OR IGNORE INTO appointments ("date", "time") VALUES (?, ?)""",
+                $"{date.Year}-{date.Month:D2}-{date.Day:D2}", time
+            );
+            if (rows > 1) {
+                return Results.InternalServerError("too many rows");
+            }
+            totalRows += rows;
+        }
+        date = date.AddDays(1);
+    }
+    return Results.Ok($"{totalRows} rows inserted");
+})
+.WithName("AddAppointmentRange");
 
 app.Run();
 
