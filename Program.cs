@@ -87,7 +87,8 @@ app.MapGet("/appointment/booked", async () => {
     DateOnly today = DateOnly.FromDateTime(DateTime.Now);
     var rows = await db.QueryAsync<Appointment>(
         """SELECT "date", "time", email, message FROM appointments """
-        + """WHERE date("date") >= date(?) AND email IS NOT NULL""",
+        + """WHERE date("date") >= date(?) AND email IS NOT NULL """
+        + """ORDER BY "date" ASC""",
         string.Format("{0}-{1:D2}-{2:D2}", today.Year, today.Month, today.Day)
     );
 
