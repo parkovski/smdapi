@@ -102,7 +102,7 @@ app.MapGet("/appointment/ranges", async () => {
 app.MapGet("/appointment/booked", async () => {
     DateOnly today = DateOnly.FromDateTime(DateTime.Now);
     var rows = await db.QueryAsync<Appointment>(
-        """SELECT "date", "time", email, message FROM appointments """
+        """SELECT "date", "time", "name", email, message FROM appointments """
         + """WHERE date("date") >= date(?) AND email IS NOT NULL """
         + """ORDER BY "date" ASC""",
         string.Format("{0}-{1:D2}-{2:D2}", today.Year, today.Month, today.Day)
@@ -154,6 +154,7 @@ app.MapGet("/appointment/{date}/{time}", async (string date, string time) => {
 
 app.MapPost("/appointment", async ([FromForm] string date,
                                    [FromForm] string time,
+                                   [FromForm] string name,
                                    [FromForm] string email,
                                    [FromForm] string message,
                                    [FromQuery] string r) => {
@@ -171,9 +172,9 @@ app.MapPost("/appointment", async ([FromForm] string date,
     }
 
     int rows = await db.ExecuteAsync(
-        "UPDATE appointments SET email = ?, message = ? "
+        "UPDATE appointments SET name = ?, email = ?, message = ? "
         + """WHERE "date" = ? AND "time" = ?""",
-        email, message,
+        name, email, message,
         date, time
     );
 
@@ -286,6 +287,10 @@ public class Appointment {
     [NotNull]
     [JsonPropertyName("time")]
     public string? Time { get; set; }
+
+    [Column("name")]
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
 
     [Column("email")]
     [JsonPropertyName("email")]
